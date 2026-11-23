@@ -2506,26 +2506,29 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
     ThrottledInterval::new(i)
 }
 
+// Boft: the signed config is built in, not read from custom.txt next to rustdesk.exe. With that
+// file in the install dir the Windows service's --server kept exiting and being relaunched
+// (R13 step 2 on B0537), whatever the file held. Built in, a stray custom.txt is ignored.
+const BOFT_CUSTOM_CLIENT: &str = include_str!("../boft/custom.txt");
+static BOFT_CUSTOM_CLIENT_LOADED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 pub fn load_custom_client() {
-    #[cfg(debug_assertions)]
-    if let Ok(data) = std::fs::read_to_string("./custom.txt") {
-        read_custom_client(data.trim());
-        return;
-    }
-    let Some(path) = std::env::current_exe().map_or(None, |x| x.parent().map(|x| x.to_path_buf()))
-    else {
-        return;
-    };
-    #[cfg(target_os = "macos")]
-    let path = path.join("../Resources");
-    let path = path.join("custom.txt");
-    if path.is_file() {
-        let Ok(data) = std::fs::read_to_string(&path) else {
-            log::error!("Failed to read custom client config");
-            return;
-        };
-        read_custom_client(&data.trim());
-    }
+    read_custom_client(BOFT_CUSTOM_CLIENT.trim());
+}
+
+// Boft: load_custom_client runs before init_log, so its errors go nowhere; core_main logs this.
+pub fn boft_custom_client_status() -> String {
+    format!(
+        "Boft built-in custom client config: {} ({} override, {} default settings)",
+        if BOFT_CUSTOM_CLIENT_LOADED.load(std::sync::atomic::Ordering::Relaxed) {
+            "loaded"
+        } else {
+            "NOT loaded"
+        },
+        config::OVERWRITE_SETTINGS.read().unwrap().len(),
+        config::DEFAULT_SETTINGS.read().unwrap().len(),
+    )
 }
 
 fn read_custom_client_advanced_settings(
@@ -2676,6 +2679,7 @@ pub fn read_custom_client(config: &str) {
                 .insert(k, v.to_owned());
         };
     }
+    BOFT_CUSTOM_CLIENT_LOADED.store(true, std::sync::atomic::Ordering::Relaxed);
 }
 
 #[inline]

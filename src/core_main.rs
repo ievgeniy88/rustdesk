@@ -181,6 +181,7 @@ pub fn core_main() -> Option<CoreMainAction> {
         }
     }
     hbb_common::init_log(false, &log_name);
+    log::info!("{}", crate::common::boft_custom_client_status());
 
     // linux uni (url) go here.
     #[cfg(all(target_os = "linux", feature = "flutter"))]

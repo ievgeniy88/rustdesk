@@ -193,9 +193,10 @@ jobs:
       - name: Boft custom client config
         shell: bash
         run: |
-          # boft/custom.txt: signed with our key (KEY in src/common.rs), read next to rustdesk.exe at start
+          # boft/custom.txt: signed with our key (KEY in src/common.rs), built into the binary
+          # (include_str! in load_custom_client); not shipped next to rustdesk.exe
           test -s boft/custom.txt
-          cp boft/custom.txt ./rustdesk/custom.txt
+          test ! -e ./rustdesk/custom.txt
 
       - name: find Runner.res
         continue-on-error: true
