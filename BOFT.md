@@ -6,4 +6,10 @@ Branch `boft-1.5.3` = tag 1.5.3 (95cca3f) + Boft's commits; upstream's own workf
 Why a build of our own: Privacy mode that survives a short drop, the connection window and tray icon hidden, and the
 server built in (custom-client config signed with our key). AGPL-3.0, as upstream: this branch is the source.
 
-Changes so far: none (step 1, the stock source built by our CI).
+Changes:
+- `src/ipc.rs`: `hide_cm` answers without the Pro/custom-client gate, so the connection window can be hidden
+  (still needs approve mode password, permanent password only and `allow-hide-cm` = Y).
+- `src/common.rs`: `KEY` in `read_custom_client` is ours. `boft/custom.txt` (from `boft/custom.json` by
+  `boft/sign-custom.sh <key>`) goes next to `rustdesk.exe`: tray icon hidden, settings locked (command-line
+  settings still allowed), auto-update off; our server and key as defaults. **No `app-name`**: the name builds the
+  config file names, so it stays "RustDesk" and every terminal keeps its ID and password.

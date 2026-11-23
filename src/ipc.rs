@@ -998,8 +998,10 @@ async fn handle(data: Data, stream: &mut Connection) {
                         None
                     };
                 } else if name == "hide_cm" {
-                    value = if crate::hbbs_http::sync::is_pro() || crate::common::is_custom_client()
-                    {
+                    // Boft: answered without the Pro/custom-client gate (the app name stays "RustDesk", so the
+                    // config paths stay the same); hide_cm() still needs approve mode password, permanent
+                    // password only and allow-hide-cm = Y.
+                    value = if true {
                         Some(hbb_common::password_security::hide_cm().to_string())
                     } else {
                         None

@@ -190,6 +190,13 @@ jobs:
           Expand-Archive printer_driver_adapter.zip -DestinationPath .
           mv -Force .\printer_driver_adapter.dll ./rustdesk
 
+      - name: Boft custom client config
+        shell: bash
+        run: |
+          # boft/custom.txt: signed with our key (KEY in src/common.rs), read next to rustdesk.exe at start
+          test -s boft/custom.txt
+          cp boft/custom.txt ./rustdesk/custom.txt
+
       - name: find Runner.res
         continue-on-error: true
         shell: bash

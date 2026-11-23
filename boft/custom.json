@@ -1,0 +1,18 @@
+{
+  "disable-settings": "Y",
+  "override-settings": {
+    "hide-tray": "Y",
+    "allow-command-line-settings-when-settings-disabled": "Y",
+    "allow-auto-update": "N"
+  },
+  "default-settings": {
+    "custom-rendezvous-server": "rd.boft.ru",
+    "relay-server": "rd.boft.ru",
+    "key": "iVQgSeibyIb8+GmwngMheNr1xthIUUJXpTTLgWMlLhg=",
+    "verification-method": "use-permanent-password",
+    "approve-mode": "password",
+    "allow-hide-cm": "Y",
+    "enable-lan-discovery": "N",
+    "direct-server": "Y"
+  }
+}

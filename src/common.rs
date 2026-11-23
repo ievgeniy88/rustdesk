@@ -2609,7 +2609,8 @@ pub fn read_custom_client(config: &str) {
         log::error!("Failed to decode custom client config");
         return;
     };
-    const KEY: &str = "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=";
+    // Boft: our key (boft/custom.txt is signed with its private half, kept off this repo)
+    const KEY: &str = "59GOwxlP+xHZ31bmi33YkfEhCEm/dsXp3LhuJ0hoXJc=";
     let Some(pk) = get_rs_pk(KEY) else {
         log::error!("Failed to parse public key of custom client");
         return;
