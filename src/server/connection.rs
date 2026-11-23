@@ -430,6 +430,10 @@ pub struct Connection {
     #[cfg(not(any(target_os = "ios")))]
     pressed_modifiers: HashSet<rdev::Key>,
     closed: bool,
+    // Boft: the first reason `on_close` got, to tell a drop from a deliberate end (privacy grace).
+    boft_close_reason: Option<String>,
+    // Boft: this connection took privacy mode over from a dropped one at login; tell its viewer.
+    boft_privacy_taken_over: bool,
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     start_cm_ipc_para: Option<StartCmIpcPara>,
     auto_disconnect_timer: Option<(Instant, u64)>,
@@ -637,6 +641,8 @@ impl Connection {
             #[cfg(not(any(target_os = "ios")))]
             pressed_modifiers: Default::default(),
             closed: false,
+            boft_close_reason: None,
+            boft_privacy_taken_over: false,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             start_cm_ipc_para: Some(StartCmIpcPara {
                 rx_to_cm,
@@ -1228,7 +1234,12 @@ impl Connection {
 
         if let Some(video_privacy_conn_id) = privacy_mode::get_privacy_mode_conn_id() {
             if video_privacy_conn_id == id {
-                let _ = Self::turn_off_privacy_to_msg(id, String::new());
+                // Boft (R13 step 3): a dropped session keeps the cover for its reconnect.
+                if conn.boft_is_drop() && privacy_mode::boft_supports_hand_over() {
+                    privacy_mode::boft_start_grace(id);
+                } else {
+                    let _ = Self::turn_off_privacy_to_msg(id, String::new());
+                }
             }
         }
         video_service::notify_video_frame_fetched_by_conn_id(id, None);
@@ -1410,7 +1421,46 @@ impl Connection {
         self.send(msg_out).await;
     }
 
+    // Boft: whether this connection ended by a drop (network, relay, silence) rather than on
+    // purpose (the viewer closed it, the connection manager or a timer ended it).
+    fn boft_is_drop(&self) -> bool {
+        const DELIBERATE: &[&str] = &[
+            "Peer close",
+            "connection manager",
+            "connection manager window closed",
+            "auto disconnect",
+            "web console",
+            "privacy mode",
+            "stop service",
+            "switch sides",
+            "Session scope violation",
+        ];
+        match self.boft_close_reason.as_deref() {
+            Some(reason) => !DELIBERATE.contains(&reason),
+            None => true,
+        }
+    }
+
+    // Boft: the privacy owner `owner` is a remote connection from the same viewer as this login.
+    fn boft_same_viewer(owner: i32, key: &SessionKey) -> bool {
+        !key.peer_id.is_empty()
+            && AUTHED_CONNS.lock().unwrap().iter().any(|c| {
+                c.conn_id == owner
+                    && c.conn_type == AuthConnType::Remote
+                    && c.session_key.peer_id == key.peer_id
+            })
+    }
+
     async fn check_privacy_mode_on(&mut self) -> bool {
+        // Boft: a reconnect may log in to a privacy session it can take over (R13 step 3).
+        if privacy_mode::is_in_privacy_mode() && privacy_mode::boft_supports_hand_over() {
+            let key = self.session_key();
+            let owner = privacy_mode::get_privacy_mode_conn_id().unwrap_or_default();
+            if privacy_mode::boft_grace_pending() || Self::boft_same_viewer(owner, &key) {
+                log::info!("Boft: login allowed during privacy mode of conn {}", owner);
+                return true;
+            }
+        }
         if privacy_mode::is_in_privacy_mode() {
             self.send_login_error("Someone turns on privacy mode, exit")
                 .await;
@@ -1932,6 +1982,12 @@ impl Connection {
             self.tx_from_authed.clone(),
             self.lr.clone(),
         ));
+        if auth_conn_type == AuthConnType::Remote && self.privacy_mode {
+            let key = self.session_key();
+            self.boft_privacy_taken_over = privacy_mode::boft_take_over(self.inner.id(), |owner| {
+                Self::boft_same_viewer(owner, &key)
+            });
+        }
         self.session_last_recv_time = SESSIONS
             .lock()
             .unwrap()
@@ -2193,6 +2249,13 @@ impl Connection {
         let mut msg_out = Message::new();
         msg_out.set_login_response(res);
         self.send(msg_out).await;
+        if self.boft_privacy_taken_over {
+            self.send(crate::common::make_privacy_mode_msg(
+                back_notification::PrivacyModeState::PrvOnSucceeded,
+                privacy_mode::get_cur_impl_key().unwrap_or_default(),
+            ))
+            .await;
+        }
         self.update_scoped_login_options().await;
         if let Some((dir, show_hidden)) = self.file_transfer.clone() {
             self.keyboard = false;
@@ -5306,6 +5369,7 @@ impl Connection {
             return;
         }
         self.closed = true;
+        self.boft_close_reason = Some(reason.to_owned());
         // If voice A,B -> C, and A,B has voice call
         // B disconnects, C will reset the voice call input.
         //

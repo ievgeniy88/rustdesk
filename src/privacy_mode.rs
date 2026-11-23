@@ -63,6 +63,16 @@ pub trait PrivacyMode: Sync + Send {
 
     fn get_impl_key(&self) -> &str;
 
+    /// Boft: whether a dropped owner's privacy mode can be handed to its reconnect (`boft_set_conn_id`).
+    fn boft_supports_hand_over(&self) -> bool {
+        false
+    }
+
+    /// Boft: makes `conn_id` the owner of privacy mode that is already on, leaving the cover as it is.
+    fn boft_set_conn_id(&mut self, _conn_id: i32) -> bool {
+        false
+    }
+
     #[inline]
     fn check_on_conn_id(&self, conn_id: i32) -> ResultType<bool> {
         let pre_conn_id = self.pre_conn_id();
@@ -326,6 +336,94 @@ pub fn turn_off_privacy(conn_id: i32, state: Option<PrivacyModeState>) -> Option
             .as_mut()?
             .turn_off_privacy(conn_id, state),
     )
+}
+
+// Boft (R13 step 3): Privacy mode grace. Stock turns privacy mode off the moment its connection ends,
+// so a short network drop uncovers the terminal's screen and unblocks its input until Support turns
+// it on again after the reconnect (~20 s). Here a dropped owner keeps the cover for BOFT_GRACE_SECS;
+// a remote connection that logs in meanwhile takes it over (connection.rs), else it goes off.
+pub const BOFT_GRACE_SECS: u64 = 30;
+lazy_static::lazy_static! {
+    // (dropped owner's conn id, generation): the generation tells a later grace from this one.
+    static ref BOFT_GRACE: Mutex<Option<(i32, u64)>> = Default::default();
+}
+static BOFT_GRACE_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub fn boft_supports_hand_over() -> bool {
+    PRIVACY_MODE
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|pm| pm.boft_supports_hand_over())
+        .unwrap_or(false)
+}
+
+pub fn boft_grace_pending() -> bool {
+    BOFT_GRACE.lock().unwrap().is_some()
+}
+
+pub fn boft_start_grace(conn_id: i32) {
+    let generation = BOFT_GRACE_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    *BOFT_GRACE.lock().unwrap() = Some((conn_id, generation));
+    hbb_common::log::info!(
+        "Boft: privacy mode of conn {} kept {} s for a reconnect",
+        conn_id,
+        BOFT_GRACE_SECS
+    );
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(BOFT_GRACE_SECS));
+        {
+            let mut grace = BOFT_GRACE.lock().unwrap();
+            if *grace != Some((conn_id, generation)) {
+                return;
+            }
+            *grace = None;
+        }
+        hbb_common::log::info!(
+            "Boft: no reconnect within {} s, privacy mode of conn {} off",
+            BOFT_GRACE_SECS,
+            conn_id
+        );
+        // Fails harmlessly (TURN_OFF_OTHER_ID) if someone else owns it by now.
+        if let Some(Err(e)) = turn_off_privacy(conn_id, None) {
+            hbb_common::log::info!("Boft: privacy mode not turned off after grace: {}", e);
+        }
+    });
+}
+
+/// Boft: hands privacy mode to `new_id` when its owner dropped and is in grace, or when
+/// `same_viewer(owner)` says `new_id` comes from the owner's viewer (its old link not timed out yet).
+/// `same_viewer` runs without this module's locks held.
+pub fn boft_take_over(new_id: i32, same_viewer: impl Fn(i32) -> bool) -> bool {
+    let Some(owner) = get_privacy_mode_conn_id() else {
+        return false;
+    };
+    if owner == INVALID_PRIVACY_MODE_CONN_ID || owner == new_id {
+        return false;
+    }
+    let viewer_match = same_viewer(owner);
+    let mut grace = BOFT_GRACE.lock().unwrap();
+    let in_grace = matches!(*grace, Some((id, _)) if id == owner);
+    if !in_grace && !viewer_match {
+        return false;
+    }
+    let mut lock = PRIVACY_MODE.lock().unwrap();
+    let Some(pm) = lock.as_mut() else {
+        return false;
+    };
+    if pm.pre_conn_id() != owner || !pm.boft_set_conn_id(new_id) {
+        return false;
+    }
+    if in_grace {
+        *grace = None;
+    }
+    hbb_common::log::info!(
+        "Boft: privacy mode handed from conn {} to {} ({})",
+        owner,
+        new_id,
+        if in_grace { "after a drop" } else { "same viewer" }
+    );
+    true
 }
 
 #[inline]

@@ -164,6 +164,18 @@ impl PrivacyMode for PrivacyModeImpl {
         self.conn_id
     }
 
+    fn boft_supports_hand_over(&self) -> bool {
+        true
+    }
+
+    fn boft_set_conn_id(&mut self, conn_id: i32) -> bool {
+        if self.conn_id == INVALID_PRIVACY_MODE_CONN_ID {
+            return false;
+        }
+        self.conn_id = conn_id;
+        true
+    }
+
     #[inline]
     fn get_impl_key(&self) -> &str {
         &self.impl_key
