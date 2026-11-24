@@ -342,7 +342,9 @@ pub fn turn_off_privacy(conn_id: i32, state: Option<PrivacyModeState>) -> Option
 // so a short network drop uncovers the terminal's screen and unblocks its input until Support turns
 // it on again after the reconnect (~20 s). Here a dropped owner keeps the cover for BOFT_GRACE_SECS;
 // a remote connection that logs in meanwhile takes it over (connection.rs), else it goes off.
-pub const BOFT_GRACE_SECS: u64 = 30;
+// 120 s: after a drop of the terminal's own network, the viewer was back in 60-110 s (B0537), since the
+// terminal registers with the ID server again first and the web client waits for a Reconnect click.
+pub const BOFT_GRACE_SECS: u64 = 120;
 lazy_static::lazy_static! {
     // (dropped owner's conn id, generation): the generation tells a later grace from this one.
     static ref BOFT_GRACE: Mutex<Option<(i32, u64)>> = Default::default();

@@ -17,8 +17,8 @@ Changes:
   config file names, so it stays "RustDesk" and every terminal keeps its ID and password.
 - `src/privacy_mode.rs`, `src/privacy_mode/win_topmost_window.rs`, `src/server/connection.rs`: **Privacy mode
   grace.** When the connection that owns privacy mode drops (any close but the viewer's own, the connection manager,
-  auto disconnect and the like), the cover and the input block stay for 30 s (`BOFT_GRACE_SECS`). A remote login
+  auto disconnect and the like), the cover and the input block stay for 120 s (`BOFT_GRACE_SECS`). A remote login
   meanwhile is let in and takes privacy mode over at authorization (its viewer is told it is on); so does a login from
-  the owner's viewer ID while the old link has not timed out yet. Nobody back in 30 s: privacy mode goes off. Only the
+  the owner's viewer ID while the old link has not timed out yet. Nobody back in 120 s: privacy mode goes off. Only the
   topmost-window implementation (exclude-from-capture and magnifier, i.e. Privacy mode 1) hands over; the others keep
   stock behaviour.
