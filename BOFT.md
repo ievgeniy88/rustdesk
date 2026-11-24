@@ -22,3 +22,5 @@ Changes:
   the owner's viewer ID while the old link has not timed out yet. Nobody back in 120 s: privacy mode goes off. Only the
   topmost-window implementation (exclude-from-capture and magnifier, i.e. Privacy mode 1) hands over; the others keep
   stock behaviour.
+- `src/privacy_mode/win_topmost_window.rs`: **a started broker gets 5 s** (stock 1 s) to show its first privacy
+  window before it is killed (`BOFT_BROKER_START_WAIT_MILLIS`); B0109 never made it in 1 s.

@@ -35,6 +35,10 @@ pub const INJECTED_PROCESS_EXE: &'static str = WIN_TOPMOST_INJECTED_PROCESS_EXE;
 pub(super) const PRIVACY_WINDOW_CLASS: &'static str = "RustDeskPrivacyWindowClass";
 pub(super) const PRIVACY_WINDOW_NAME: &'static str = "RustDeskPrivacyWindow";
 const PRIVACY_WINDOW_WAIT_MILLIS: u128 = 1_000;
+// Boft: the wait for a freshly started broker's first window. Stock uses PRIVACY_WINDOW_WAIT_MILLIS (1 s):
+// broker start + DLL injection + the DLL's setup took longer on some terminals (B0109 every time, B0369
+// once), and the broker was killed with "Expected privacy windows to cover 1 monitors, covered 0, found 0".
+const BOFT_BROKER_START_WAIT_MILLIS: u128 = 5_000;
 const PRIVACY_WINDOW_WAIT_EXTRA_MONITOR_MILLIS: u128 = 500;
 const PRIVACY_WINDOW_POLL_INTERVAL_MILLIS: u64 = 100;
 const WM_RUSTDESK_SHOW_WINDOWS: u32 = WM_APP + 3;
@@ -327,7 +331,7 @@ impl PrivacyModeImpl {
             self.handlers.hthread = proc_info.hThread as _;
             self.handlers.hprocess = proc_info.hProcess as _;
 
-            if let Err(e) = wait_find_privacy_hwnds(PRIVACY_WINDOW_WAIT_MILLIS) {
+            if let Err(e) = wait_find_privacy_hwnds(BOFT_BROKER_START_WAIT_MILLIS) {
                 self.handlers.reset();
                 return Err(e);
             }
