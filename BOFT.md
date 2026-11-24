@@ -22,5 +22,8 @@ Changes:
   the owner's viewer ID while the old link has not timed out yet. Nobody back in 120 s: privacy mode goes off. Only the
   topmost-window implementation (exclude-from-capture and magnifier, i.e. Privacy mode 1) hands over; the others keep
   stock behaviour.
+  `src/virtual_display_manager.rs`: the Amyuni driver's `reset_all()`, run when the last remote connection goes,
+  leaves privacy mode on while a grace is pending (stock turns it off for any owner, which took the cover down 0.14 s
+  after each drop).
 - `src/privacy_mode/win_topmost_window.rs`: **a started broker gets 5 s** (stock 1 s) to show its first privacy
   window before it is killed (`BOFT_BROKER_START_WAIT_MILLIS`); B0109 never made it in 1 s.

@@ -525,7 +525,14 @@ pub mod amyuni_idd {
     }
 
     pub fn reset_all() -> ResultType<()> {
-        let _ = crate::privacy_mode::turn_off_privacy(0, None);
+        // Boft (R13 step 3): this runs when the last remote connection goes, also when it dropped and its
+        // privacy mode is kept for a reconnect; turning it off here (conn 0 skips the owner check) took the
+        // cover down 0.14 s after every drop on B0537. The grace thread turns it off if nobody comes back.
+        if crate::privacy_mode::boft_grace_pending() {
+            log::info!("Boft: privacy mode kept on at reset_all, a reconnect may take it over");
+        } else {
+            let _ = crate::privacy_mode::turn_off_privacy(0, None);
+        }
         let _ = plug_out_monitor(super::IDD_PLUG_OUT_ALL_INDEX, true, false);
         *LAST_PLUG_IN_HEADLESS_TIME.lock().unwrap() = None;
         Ok(())
