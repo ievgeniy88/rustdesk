@@ -25,5 +25,9 @@ Changes:
   `src/virtual_display_manager.rs`: the Amyuni driver's `reset_all()`, run when the last remote connection goes,
   leaves privacy mode on while a grace is pending (stock turns it off for any owner, which took the cover down 0.14 s
   after each drop).
+- `src/hbbs_http/sync.rs`: **quiet when idle.** Without a session the heartbeat to the API server goes every 10 min
+  (stock 15 s) and sysinfo once a day (stock every 2 min, as rd.boft.ru never answers `SYSINFO_UPDATED`); in a
+  session it stays every 3 s, and the first beat after the session ends goes out at once (stock: up to 15 s later).
+  Each post is a new TLS connection, so with ~45 terminals the idle beats were ~17 KB/s out of rd.boft.ru.
 - `src/privacy_mode/win_topmost_window.rs`: **a started broker gets 5 s** (stock 1 s) to show its first privacy
   window before it is killed (`BOFT_BROKER_START_WAIT_MILLIS`); B0109 never made it in 1 s.

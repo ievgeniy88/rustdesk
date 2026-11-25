@@ -15,8 +15,11 @@ use base::config::keys;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-const TIME_HEARTBEAT: Duration = Duration::from_secs(15);
-const UPLOAD_SYSINFO_TIMEOUT: Duration = Duration::from_secs(120);
+// Boft: an idle terminal (no session) beats every 10 min (stock 15 s) and uploads sysinfo once a day (stock 2 min
+// while the server never answers SYSINFO_UPDATED, which ours doesn't): each post is a new TLS connection, and
+// rd.boft.ru only needs the beats of an open session (every TIME_CONN) and the one right after it ends.
+const TIME_HEARTBEAT: Duration = Duration::from_secs(600);
+const UPLOAD_SYSINFO_TIMEOUT: Duration = Duration::from_secs(24 * 3600);
 const TIME_CONN: Duration = Duration::from_secs(3);
 
 #[cfg(not(any(target_os = "ios")))]
@@ -90,6 +93,7 @@ async fn start_hbbs_sync_async() {
         TIME_CONN,
     ));
     let mut last_sent: Option<Instant> = None;
+    let mut had_conns = false; // Boft: the first beat without the session's conns goes out at once
     let mut info_uploaded = InfoUploaded::default();
     let mut sysinfo_ver = "".to_owned();
     loop {
@@ -229,9 +233,10 @@ async fn start_hbbs_sync_async() {
                         }
                     }
                 }
-                if conns.is_empty() && last_sent.map(|x| x.elapsed() < TIME_HEARTBEAT).unwrap_or(false) {
+                if conns.is_empty() && !had_conns && last_sent.map(|x| x.elapsed() < TIME_HEARTBEAT).unwrap_or(false) {
                     continue;
                 }
+                had_conns = !conns.is_empty();
                 last_sent = Some(Instant::now());
                 let mut v = Value::default();
                 v["id"] = json!(id);
